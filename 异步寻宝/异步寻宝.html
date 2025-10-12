@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>异步寻宝游戏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #ecf0f0, #ecf0f0);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+        }
+        
+        h1 {
+            text-align: center;
+            font-size: 2.2rem;
+            margin-bottom: 15px;
+            color: #ff6b6b;
+        }
+        
+        .map-container {
+            position: relative;
+            height: 200px;
+            background: #e9f7fb;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #4ecdc4;
+            margin-bottom: 20px;
+        }
+        
+        .character {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background: #ff6b6b;
+            border-radius: 50%;
+            top: 50%;
+            left: 10%;
+            transform: translateY(-50%);
+            transition: left 1s, top 1s;
+            box-shadow: 0 0 5px rgba(255, 107, 107, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.7rem;
+            z-index: 10;
+        }
+        
+        .location {
+            position: absolute;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 50%;
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            font-size: 0.6rem;
+            border: 2px solid white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        
+        .library { top: 20%; left: 20%; background: #45b7d1; }
+        .temple { top: 60%; left: 50%; background: #96ceb4; }
+        .jungle { top: 30%; left: 70%; background: #feca57; }
+        .cave { top: 70%; left: 80%; background: #ff9ff3; }
+        .treasure { top: 40%; left: 90%; background: #ffcc00; color: #333; }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 15px 0;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background: #4ecdc4;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            background: #2a9d8f;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .log {
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 8px;
+            padding: 12px;
+            height: 150px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            font-size: 0.9rem;
+        }
+        
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 6px;
+            border-radius: 4px;
+            animation: fadeIn 0.3s;
+        }
+        
+        .success { background: rgba(106, 176, 76, 0.2); border-left: 3px solid #6ab04c; }
+        .error { background: rgba(255, 107, 107, 0.2); border-left: 3px solid #ff6b6b; }
+        .info { background: rgba(78, 205, 196, 0.2); border-left: 3px solid #4ecdc4; }
+        .treasure-found { background: rgba(255, 204, 0, 0.2); border-left: 3px solid #ffcc00; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        
+        .progress {
+            height: 100%;
+            background: linear-gradient(90deg, #4ecdc4, #ff6b6b);
+            width: 0%;
+            transition: width 0.5s;
+        }
+        
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin: 15px 0;
+        }
+        
+        .step {
+            text-align: center;
+            flex: 1;
+            padding: 8px;
+            background: #f0f0f0;
+            margin: 0 3px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            transition: all 0.3s;
+            color: #666;
+        }
+        
+        .step.active {
+            background: #4ecdc4;
+            color: white;
+        }
+        
+        .step.completed {
+            background: #6ab04c;
+            color: white;
+        }
+        
+        .status {
+            text-align: center;
+            margin: 10px 0;
+            font-weight: bold;
+            color: #ff6b6b;
+            height: 24px;
+        }
+    </style>
+</head>
+<body>
+    <h1>异步寻宝游戏</h1>
+    
+    <div class="container">
+        <div class="status" id="status">准备开始寻宝...</div>
+        
+        <div class="map-container">
+            <div class="location library">图书馆</div>
+            <div class="location temple">神庙</div>
+            <div class="location jungle">丛林</div>
+            <div class="location cave">洞穴</div>
+            <div class="location treasure">宝藏</div>
+            <div class="character">探险者</div>
+        </div>
+        
+        <div class="step-indicator">
+            <div class="step" id="step1">寻找线索</div>
+            <div class="step" id="step2">解码线索</div>
+            <div class="step" id="step3">探索神庙</div>
+            <div class="step" id="step4">穿越丛林</div>
+            <div class="step" id="step5">洞穴寻宝</div>
+        </div>
+        
+        <div class="progress-bar">
+            <div class="progress" id="progress"></div>
+        </div>
+        
+        <div class="controls">
+            <button id="startBtn">开始寻宝</button>
+            <button id="resetBtn" disabled>重新开始</button>
+        </div>
+        
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        // 宝藏地图API
+        class TreasureMap {
+            static async getInitialClue() {
+                await new Promise(resolve => setTimeout(resolve, 800));
+                return "在古老的图书馆里找到了第一个线索...";
+            }
+
+            static async decodeAncientScript(clue) {
+                if (!clue) throw new Error("没有线索可以解码!");
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                return "解码成功!宝藏在一座古老的神庙中...";
+            }
+
+            static async searchTemple() {
+                await new Promise(resolve => setTimeout(resolve, 1200));
+                if (Math.random() < 0.4) throw new Error("糟糕!遇到了神庙守卫!");
+                return "找到了一个神秘的箱子，但箱子被锁住了...";
+            }
+
+            static async exploreJungle() {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                if (Math.random() < 0.3) throw new Error("丛林中的猛兽阻挡了去路!");
+                return "成功穿越丛林!发现了一个黑暗的洞穴入口...";
+            }
+
+            static async searchCave() {
+                await new Promise(resolve => setTimeout(resolve, 1200));
+                if (Math.random() < 0.3) throw new Error("洞穴坍塌了!必须寻找其他入口...");
+                return "在洞穴深处找到了传说中的宝藏!";
+            }
+
+            static async openTreasureBox() {
+                await new Promise(resolve => setTimeout(resolve, 800));
+                return "恭喜!你找到了传说中的宝藏!";
+            }
+        }
+
+        // 游戏逻辑
+        class TreasureGame {
+            constructor() {
+                this.isPlaying = false;
+                this.currentStep = 0;
+                this.totalSteps = 5;
+                this.logElement = document.getElementById('log');
+                this.progressElement = document.getElementById('progress');
+                this.statusElement = document.getElementById('status');
+                this.character = document.querySelector('.character');
+                this.steps = document.querySelectorAll('.step');
+                this.startBtn = document.getElementById('startBtn');
+                this.resetBtn = document.getElementById('resetBtn');
+                
+                this.setupEventListeners();
+            }
+            
+            setupEventListeners() {
+                this.startBtn.addEventListener('click', () => this.startGame());
+                this.resetBtn.addEventListener('click', () => this.resetGame());
+            }
+            
+            async startGame() {
+                if (this.isPlaying) return;
+                
+                this.isPlaying = true;
+                this.startBtn.disabled = true;
+                this.resetBtn.disabled = true;
+                this.clearLog();
+                this.resetProgress();
+                this.updateStatus("开始寻宝...");
+                
+                try {
+                    await this.findTreasure();
+                    this.updateStatus("寻宝成功!");
+                } catch (error) {
+                    this.addLog(`任务失败: ${error}`, 'error');
+                    this.updateStatus("寻宝失败!");
+                } finally {
+                    this.isPlaying = false;
+                    this.resetBtn.disabled = false;
+                }
+            }
+            
+            resetGame() {
+                this.isPlaying = false;
+                this.currentStep = 0;
+                this.startBtn.disabled = false;
+                this.resetBtn.disabled = true;
+                this.clearLog();
+                this.resetProgress();
+                this.resetCharacterPosition();
+                this.resetSteps();
+                this.updateStatus("准备开始寻宝...");
+            }
+            
+            async findTreasure() {
+                // 步骤1: 获取初始线索
+                this.updateStep(1);
+                this.updateStatus("正在寻找线索...");
+                await this.moveCharacter('.library');
+                const clue = await TreasureMap.getInitialClue();
+                this.addLog(clue, 'info');
+                
+                // 步骤2: 解码古老文字
+                this.updateStep(2);
+                this.updateStatus("正在解码线索...");
+                await this.moveCharacter('.temple');
+                const location = await TreasureMap.decodeAncientScript(clue);
+                this.addLog(location, 'success');
+                
+                // 步骤3: 探索神庙
+                this.updateStep(3);
+                this.updateStatus("正在探索神庙...");
+                let templeResult;
+                let attempts = 0;
+                
+                while (attempts < 2) {
+                    try {
+                        templeResult = await TreasureMap.searchTemple();
+                        this.addLog(templeResult, 'info');
+                        break;
+                    } catch (error) {
+                        attempts++;
+                        this.addLog(`${error} (尝试 ${attempts}/2)`, 'error');
+                        if (attempts >= 2) throw new Error("探索神庙失败");
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                }
+                
+                // 步骤4: 穿越丛林
+                this.updateStep(4);
+                this.updateStatus("正在穿越丛林...");
+                await this.moveCharacter('.jungle');
+                let jungleResult;
+                attempts = 0;
+                
+                while (attempts < 2) {
+                    try {
+                        jungleResult = await TreasureMap.exploreJungle();
+                        this.addLog(jungleResult, 'info');
+                        break;
+                    } catch (error) {
+                        attempts++;
+                        this.addLog(`${error} (尝试 ${attempts}/2)`, 'error');
+                        if (attempts >= 2) throw new Error("穿越丛林失败");
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                }
+                
+                // 步骤5: 洞穴寻宝
+                this.updateStep(5);
+                this.updateStatus("正在洞穴中寻找宝藏...");
+                await this.moveCharacter('.cave');
+                let caveResult;
+                attempts = 0;
+                
+                while (attempts < 2) {
+                    try {
+                        caveResult = await TreasureMap.searchCave();
+                        this.addLog(caveResult, 'info');
+                        break;
+                    } catch (error) {
+                        attempts++;
+                        this.addLog(`${error} (尝试 ${attempts}/2)`, 'error');
+                        if (attempts >= 2) throw new Error("洞穴寻宝失败");
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                }
+                
+                // 找到宝藏
+                this.updateStatus("正在打开宝箱...");
+                await this.moveCharacter('.treasure');
+                const treasure = await TreasureMap.openTreasureBox();
+                this.addLog(treasure, 'treasure-found');
+            }
+            
+            addLog(message, type = 'info') {
+                const logEntry = document.createElement('div');
+                logEntry.className = `log-entry ${type}`;
+                logEntry.textContent = message;
+                this.logElement.appendChild(logEntry);
+                this.logElement.scrollTop = this.logElement.scrollHeight;
+            }
+            
+            clearLog() {
+                this.logElement.innerHTML = '';
+            }
+            
+            updateStatus(message) {
+                this.statusElement.textContent = message;
+            }
+            
+            updateStep(step) {
+                this.currentStep = step;
+                this.updateProgress();
+                this.updateStepIndicator();
+            }
+            
+            updateProgress() {
+                const progress = (this.currentStep / this.totalSteps) * 100;
+                this.progressElement.style.width = `${progress}%`;
+            }
+            
+            resetProgress() {
+                this.progressElement.style.width = '0%';
+            }
+            
+            updateStepIndicator() {
+                this.steps.forEach((step, index) => {
+                    step.classList.remove('active', 'completed');
+                    if (index + 1 === this.currentStep) {
+                        step.classList.add('active');
+                    } else if (index + 1 < this.currentStep) {
+                        step.classList.add('completed');
+                    }
+                });
+            }
+            
+            resetSteps() {
+                this.steps.forEach(step => {
+                    step.classList.remove('active', 'completed');
+                });
+            }
+            
+            async moveCharacter(selector) {
+                const target = document.querySelector(selector);
+                const targetRect = target.getBoundingClientRect();
+                const mapRect = document.querySelector('.map-container').getBoundingClientRect();
+                
+                const targetX = targetRect.left - mapRect.left + targetRect.width / 2;
+                const targetY = targetRect.top - mapRect.top + targetRect.height / 2;
+                
+                this.character.style.left = `${targetX - 15}px`;
+                this.character.style.top = `${targetY - 15}px`;
+                
+                return new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+            resetCharacterPosition() {
+                this.character.style.transition = 'none';
+                this.character.style.left = '10%';
+                this.character.style.top = '50%';
+                setTimeout(() => {
+                    this.character.style.transition = 'left 1s, top 1s';
+                }, 10);
+            }
+        }
+
+        // 初始化游戏
+        document.addEventListener('DOMContentLoaded', () => {
+            new TreasureGame();
+        });
+    </script>
+</body>
+</html>
